@@ -1,5 +1,3 @@
-extern crate image;
-
 use rand::distributions::{Distribution, Uniform};
 
 use image::imageops::{crop, replace, resize};
@@ -54,8 +52,8 @@ fn find_best_match(aspect: f64, thumbnail: & ImageBuffer<Rgb<u8>, Vec<u8>>, pics
             best_score = score;
         }
     }
-
-    return best_match.unwrap();
+    
+    best_match.unwrap()
 }
 
 
@@ -87,7 +85,7 @@ fn get_match_data(
         println!("{}, {}, {}, {}, {}, {}", i, j, x, y, width, height);
             
         let mut crop_img = google_img.clone();
-        let crop = crop(&mut crop_img, x, y, x + width, y + height).to_image();
+        let crop = crop(&mut crop_img, x, y, width, height).to_image();
         let aspect = width as f64 / height as f64;
         let thumbnail = resize(&crop, 128, 128, image::FilterType::Lanczos3);
 
