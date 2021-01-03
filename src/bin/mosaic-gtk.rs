@@ -163,7 +163,7 @@ pub fn get_pics_data(pics_dir: &Path, tx: glib::Sender<Option<PicData>>) {
 impl MainView {
     pub fn new() -> Self {
         let progress = gtk::ProgressBar::new();
-        progress.set_text(Some("Pictures Loaded"));
+        progress.set_text(Some("0 Pictures Loaded"));
         progress.set_show_text(true);
         progress.set_hexpand(true);
 
@@ -188,6 +188,7 @@ impl MainView {
             rx.attach(None, move |value| match value {
                 Some(pic_data) => {
                     count += 1;
+                    progress.set_text(Some(&(count.to_string() + " Pictures Loaded")));
                     progress.set_fraction(count as f64 / total_files as f64);
                     pics_data.borrow_mut().push(pic_data);
                     
