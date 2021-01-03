@@ -17,10 +17,10 @@ use rayon::prelude::*;
 use mlib::*;
 
 pub fn main() {
-    glib::set_program_name(Some("Progress Tracker"));
+    glib::set_program_name(Some("Photo Mosaic"));
 
     let application = gtk::Application::new(
-        Some("com.github.progress-tracker"),
+        Some("com.chapmanshoop.photo-mosaic"),
         gio::ApplicationFlags::empty(),
     )
     .expect("initialization failed");
@@ -108,7 +108,7 @@ pub struct Header {
 impl Header {
     pub fn new() -> Self {
         let container = gtk::HeaderBar::new();
-        container.set_title(Some("Progress Tracker"));
+        container.set_title(Some("Photo Mosaic"));
         container.set_show_close_button(true);
 
         Header { container }
