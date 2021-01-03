@@ -1,18 +1,23 @@
-use gio::prelude::*;
-use glib::clone;
-use gtk::prelude::*;
-
 use std::cell::RefCell;
 use std::env::args;
+use std::fs;
+use std::path::Path;
 use std::rc::Rc;
 use std::thread;
 
-use std::fs;
-use std::path::Path;
-
+use gio::prelude::*;
+use glib::clone;
+use gtk::prelude::*;
 use rayon::prelude::*;
 
 use mlib::*;
+
+pub fn get_pics_data(pics_dir: &Path, tx: glib::Sender<Option<PicData>>) {
+    let paths = fs::read_dir(pics_dir).unwrap().map(|x| x.unwrap().path());
+    paths.par_bridge().for_each(|path| {
+        tx.send(Some(get_pic_data(path))).unwrap();
+    });
+}
 
 pub fn main() {
     glib::set_program_name(Some("Photo Mosaic"));
@@ -58,30 +63,18 @@ impl Application {
 pub struct Widgets {
     pub window: gtk::ApplicationWindow,
     pub header: Header,
-    pub view_stack: gtk::Stack,
     pub main_view: MainView,
-    pub complete_view: CompleteView,
 }
 
 impl Widgets {
     pub fn new(application: &gtk::Application) -> Self {
-        let complete_view = CompleteView::new();
-        let main_view = MainView::new();
-
-        let view_stack = gtk::Stack::new();
-        view_stack.set_border_width(6);
-        view_stack.set_vexpand(true);
-        view_stack.set_hexpand(true);
-        view_stack.add(&main_view.container);
-        view_stack.add(&complete_view.container);
-
         let header = Header::new();
-
+        let main_view = MainView::new();
         let window = gtk::ApplicationWindow::new(application);
         window.set_icon_name(Some("package-x-generic"));
         window.set_property_window_position(gtk::WindowPosition::Center);
         window.set_titlebar(Some(&header.container));
-        window.add(&view_stack);
+        window.add(&main_view.container);
         window.show_all();
         window.set_default_size(500, 250);
         window.connect_delete_event(move |window, _| {
@@ -92,9 +85,7 @@ impl Widgets {
         Widgets {
             window,
             header,
-            view_stack,
             main_view,
-            complete_view,
         }
     }
 }
@@ -113,28 +104,6 @@ impl Header {
     }
 }
 
-pub struct CompleteView {
-    pub container: gtk::Grid,
-}
-
-impl CompleteView {
-    pub fn new() -> Self {
-        let label = gtk::Label::new(None);
-        label.set_markup("Task complete");
-        label.set_halign(gtk::Align::Center);
-        label.set_valign(gtk::Align::Center);
-        label.set_vexpand(true);
-        label.set_hexpand(true);
-
-        let container = gtk::Grid::new();
-        container.set_vexpand(true);
-        container.set_hexpand(true);
-        container.add(&label);
-
-        CompleteView { container }
-    }
-}
-
 pub struct MainView {
     pub container: gtk::Grid,
     pub progress: gtk::ProgressBar,
@@ -142,13 +111,6 @@ pub struct MainView {
     pub folder_chooser_button: gtk::FileChooserButton,
     pub file_chooser_button: gtk::FileChooserButton,
     pub pics_data: Rc<RefCell<Vec<PicData>>>,
-}
-
-pub fn get_pics_data(pics_dir: &Path, tx: glib::Sender<Option<PicData>>) {
-    let paths = fs::read_dir(pics_dir).unwrap().map(|x| x.unwrap().path());
-    paths.par_bridge().for_each(|path| {
-        tx.send(Some(get_pic_data(path))).unwrap();
-    });
 }
 
 impl MainView {
