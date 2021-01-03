@@ -610,6 +610,7 @@ name = "mosaic-rust"
 version = "0.1.0"
 dependencies = [
  "gio",
+ "glib",
  "gtk",
  "image",
  "itertools 0.10.0",

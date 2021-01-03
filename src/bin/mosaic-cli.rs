@@ -12,11 +12,20 @@ use itertools::Itertools;
 
 use rayon::prelude::*;
 
-#[derive(Debug)]
-struct PicData {
-    path: PathBuf,
-    aspect: f64,
-    thumbnail: ImageBuffer<Rgb<u8>, Vec<u8>>,
+use mlib::*;
+
+pub fn get_pic_data(path: PathBuf) -> PicData {
+    let img = image::open(&path).unwrap().to_rgb();
+    let aspect = img.width() as f64 / img.height() as f64;
+    let thumbnail = resize(&img, 128, 128, image::FilterType::Lanczos3);
+    
+    PicData{path: path, aspect: aspect, thumbnail: thumbnail}
+}
+
+pub fn get_pics_data(pics_dir: &Path) -> Vec<PicData> {
+    let paths = fs::read_dir(pics_dir).unwrap().map(|x| x.unwrap().path());
+ 
+    paths.par_bridge().map(get_pic_data).collect()
 }
 
 #[derive(Debug)]
@@ -54,21 +63,6 @@ fn find_best_match(aspect: f64, thumbnail: & ImageBuffer<Rgb<u8>, Vec<u8>>, pics
     }
     
     best_match.unwrap()
-}
-
-
-fn get_pic_data(path: PathBuf) -> PicData {
-    let img = image::open(&path).unwrap().to_rgb();
-    let aspect = img.width() as f64 / img.height() as f64;
-    let thumbnail = resize(&img, 128, 128, image::FilterType::Lanczos3);
-    
-    PicData{path: path, aspect: aspect, thumbnail: thumbnail}
-}
-
-fn get_pics_data(pics_dir: &Path) -> Vec<PicData> {
-    let paths = fs::read_dir(pics_dir).unwrap().map(|x| x.unwrap().path());
- 
-    paths.par_bridge().map(get_pic_data).collect()
 }
 
 fn get_match_data(
