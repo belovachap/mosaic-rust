@@ -3,13 +3,10 @@ use std::fs;
 use std::iter::Enumerate;
 use std::path::{Path, PathBuf};
 
-use rand::distributions::{Distribution, Uniform};
-
-use image::imageops::{crop, replace, resize};
 use image::{ImageBuffer, Rgb};
-
+use image::imageops::{crop, replace, resize};
 use itertools::Itertools;
-
+use rand::distributions::{Distribution, Uniform};
 use rayon::prelude::*;
 
 use mlib::*;
