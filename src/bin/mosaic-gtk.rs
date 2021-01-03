@@ -7,10 +7,8 @@ use std::env::args;
 use std::rc::Rc;
 use std::thread;
 
-use image::imageops::resize;
-
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rayon::prelude::*;
 
@@ -146,19 +144,12 @@ pub struct MainView {
     pub pics_data: Rc<RefCell<Vec<PicData>>>,
 }
 
-pub fn get_pic_data(path: PathBuf) -> PicData {
-    let img = image::open(&path).unwrap().to_rgb();
-    let aspect = img.width() as f64 / img.height() as f64;
-    let thumbnail = resize(&img, 128, 128, image::FilterType::Lanczos3);
-    
-    PicData{path: path, aspect: aspect, thumbnail: thumbnail}
-}
-
 pub fn get_pics_data(pics_dir: &Path, tx: glib::Sender<Option<PicData>>) {
     let paths = fs::read_dir(pics_dir).unwrap().map(|x| x.unwrap().path());
-    paths.par_bridge().for_each(|path| { tx.send(Some(get_pic_data(path))).unwrap(); });
+    paths.par_bridge().for_each(|path| {
+        tx.send(Some(get_pic_data(path))).unwrap();
+    });
 }
-
 
 impl MainView {
     pub fn new() -> Self {
@@ -171,37 +162,41 @@ impl MainView {
         button.set_label("start");
         button.set_halign(gtk::Align::Center);
 
-	let pics_data = Rc::new(RefCell::new(Vec::new()));
-        let folder_chooser_button = gtk::FileChooserButton::new("Select Pictures", gtk::FileChooserAction::SelectFolder);
-        folder_chooser_button.connect_file_set(clone!(@weak pics_data, @weak progress => move |button| {
-            let path = button.get_filename().unwrap();
-            println!("You selected: {:?}", path);
+        let pics_data = Rc::new(RefCell::new(Vec::new()));
+        let folder_chooser_button =
+            gtk::FileChooserButton::new("Select Pictures", gtk::FileChooserAction::SelectFolder);
+        folder_chooser_button.connect_file_set(
+            clone!(@weak pics_data, @weak progress => move |button| {
+                let path = button.get_filename().unwrap();
+                println!("You selected: {:?}", path);
 
-	    let total_files = fs::read_dir(&path).unwrap().count();
-            println!("Total files: {:?}", total_files);
-    
-            let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-            
-            thread::spawn(move || { get_pics_data(&path, tx); });
+            let total_files = fs::read_dir(&path).unwrap().count();
+                println!("Total files: {:?}", total_files);
 
-            let mut count = 0;
-            rx.attach(None, move |value| match value {
-                Some(pic_data) => {
-                    count += 1;
-                    progress.set_text(Some(&(count.to_string() + " Pictures Loaded")));
-                    progress.set_fraction(count as f64 / total_files as f64);
-                    pics_data.borrow_mut().push(pic_data);
-                    
-                    glib::Continue(true)
-                }
-                None => {
+                let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-                    glib::Continue(false)
-                }
-            });
-        }));
+                thread::spawn(move || { get_pics_data(&path, tx); });
 
-        let file_chooser_button = gtk::FileChooserButton::new("Select Picture", gtk::FileChooserAction::Open);
+                let mut count = 0;
+                rx.attach(None, move |value| match value {
+                    Some(pic_data) => {
+                        count += 1;
+                        progress.set_text(Some(&(count.to_string() + " Pictures Loaded")));
+                        progress.set_fraction(count as f64 / total_files as f64);
+                        pics_data.borrow_mut().push(pic_data);
+
+                        glib::Continue(true)
+                    }
+                    None => {
+
+                        glib::Continue(false)
+                    }
+                });
+            }),
+        );
+
+        let file_chooser_button =
+            gtk::FileChooserButton::new("Select Picture", gtk::FileChooserAction::Open);
         file_chooser_button.connect_file_set(clone!(@weak pics_data => move |button| {
             let path = button.get_filename().unwrap();
             println!("You selected: {:?}", path);
@@ -209,10 +204,10 @@ impl MainView {
         }));
 
         let container = gtk::Grid::new();
-        container.attach(&folder_chooser_button, 0, 0, 1, 1);        
+        container.attach(&folder_chooser_button, 0, 0, 1, 1);
         container.attach(&progress, 1, 0, 1, 1);
         container.attach(&file_chooser_button, 0, 1, 1, 1);
-        
+
         container.set_row_spacing(12);
         container.set_border_width(6);
         container.set_vexpand(true);
