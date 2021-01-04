@@ -131,23 +131,18 @@ impl MainView {
         pics_data_chooser_button.connect_file_set(
             clone!(@weak pics_data, @weak pics_data_progress, @weak window => move |button| {
                 let path = button.get_filename().expect("Couldn't get filename");
-                println!("You selected: {:?}", path);
-
                 let total_files = fs::read_dir(&path).unwrap().count();
-                println!("Total files: {:?}", total_files);
-                
                 let paths = fs::read_dir(&path).unwrap().map(|x| x.unwrap().path());
                 let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-
                 let local_pics_data = Arc::new(Mutex::new(Vec::new()));
+                
                 thread::spawn(clone!(@weak local_pics_data => move || {
                     paths.par_bridge().for_each(|path| {
-                        println!("about to get and push the data");
                         let pic_data = get_pic_data(path);
                         local_pics_data.lock().unwrap().push(pic_data);
                         tx.send(Some(1)).unwrap();
-                        println!("done with the data stuff");
                     });
+                    tx.send(None).unwrap();
                 }));
 
                 let mut count = 0;
@@ -160,7 +155,7 @@ impl MainView {
                         glib::Continue(true)
                     }
                     None => {
-                        *pics_data.lock().unwrap() = local_pics_data.lock().unwrap().to_vec();
+                        *(pics_data.lock().unwrap()) = local_pics_data.lock().unwrap().to_vec();
 
                         glib::Continue(false)
                     }
@@ -181,6 +176,7 @@ impl MainView {
             clone!(@weak input, @weak input_progress => move |button| {
                 let path = button.get_filename().unwrap();
                 println!("You selected: {:?}", path);
+                *input.lock().unwrap() = Some(image::open(path).unwrap().to_rgb());
             }),
         );
 
@@ -190,7 +186,9 @@ impl MainView {
         match_data_progress.set_hexpand(true);
 
         let output_chooser_button = gtk::Button::with_label("Create Photo Mosaic");
-        output_chooser_button.connect_clicked(clone!(@weak pics_data, @weak input, @weak match_data_progress, @weak window => move |button| {
+        output_chooser_button.connect_clicked(clone!(@weak input, @weak pics_data, @weak match_data_progress, @weak window => move |button| {
+            let pics_dataz = pics_data.lock().unwrap();
+            println!("I unwrapped pics_data, it has {} elements", pics_dataz.len());
             let file_chooser = gtk::FileChooserDialog::new(
                 Some("Create Photo Mosaic"),
                 Some(&window),
@@ -201,85 +199,113 @@ impl MainView {
                 ("Cancel", gtk::ResponseType::Cancel),
             ]);
             file_chooser.connect_response(clone!(@weak input, @weak pics_data, @weak match_data_progress => move |file_chooser, response| {
-                let input = input.lock().unwrap().take().unwrap();
-                let pics_data = pics_data.lock().unwrap();
                 if response == gtk::ResponseType::Ok {
+                    let input = input.lock().unwrap().take().unwrap();
                     let path = file_chooser.get_filename().expect("Couldn't get filename");
                     println!("You selected: {:?}", path);
                     println!("Create the output!");
 
-                    let mut x_rulers = Vec::new();
+                        let mut x_rulers = Vec::new();
 
-                    let mut pixels = 0;
-                    let distribution = Uniform::new(120, 320);
-                    let mut rng = rand::thread_rng();
-                    loop {
-                        let step = distribution.sample(&mut rng);
+                        let mut pixels = 0;
+                        let distribution = Uniform::new(120, 320);
+                        let mut rng = rand::thread_rng();
+                        loop {
+                            let step = distribution.sample(&mut rng);
 
-                        if pixels + step > input.width() {
-                            break;
-                        }
-
-                        pixels += step;
-                        x_rulers.push(pixels);
-                    }
-
-                    let mut x_remaining = input.width() - pixels;
-                    while x_remaining > 0 {
-                        for i in 0..x_rulers.len() {
-                            for j in i..x_rulers.len() {
-                                x_rulers[j] += 1;
-                            }
-
-                            x_remaining -= 1;
-                            if x_remaining <= 0 {
+                            if pixels + step > input.width() {
                                 break;
                             }
-                        }
-                    }
 
-                    x_rulers.insert(0, 0);
-
-                    let mut y_rulers = Vec::new();
-
-                    let mut pixels = 0;
-                    loop {
-                        let step = distribution.sample(&mut rng);
-
-                        if pixels + step > input.height() {
-                            break;
+                            pixels += step;
+                            x_rulers.push(pixels);
                         }
 
-                        pixels += step;
-                        y_rulers.push(pixels);
-                    }
+                        let mut x_remaining = input.width() - pixels;
+                        while x_remaining > 0 {
+                            for i in 0..x_rulers.len() {
+                                for j in i..x_rulers.len() {
+                                    x_rulers[j] += 1;
+                                }
 
-                    let mut y_remaining = input.height() - pixels;
-                    while y_remaining > 0 {
-                        for i in 0..y_rulers.len() {
-                            for j in i..y_rulers.len() {
-                                y_rulers[j] += 1;
+                                x_remaining -= 1;
+                                if x_remaining <= 0 {
+                                    break;
+                                }
                             }
+                        }
 
-                            y_remaining -= 1;
-                            if y_remaining <= 0 {
+                        x_rulers.insert(0, 0);
+
+                        let mut y_rulers = Vec::new();
+
+                        let mut pixels = 0;
+                        loop {
+                            let step = distribution.sample(&mut rng);
+
+                            if pixels + step > input.height() {
                                 break;
                             }
+
+                            pixels += step;
+                            y_rulers.push(pixels);
                         }
-                    }
 
-                    y_rulers.insert(0, 0);
+                        let mut y_remaining = input.height() - pixels;
+                        while y_remaining > 0 {
+                            for i in 0..y_rulers.len() {
+                                for j in i..y_rulers.len() {
+                                    y_rulers[j] += 1;
+                                }
 
-                    let x_steps = x_rulers[0..x_rulers.len() - 1].iter().enumerate();
-                    let y_steps = y_rulers[0..y_rulers.len() - 1].iter().enumerate();
+                                y_remaining -= 1;
+                                if y_remaining <= 0 {
+                                    break;
+                                }
+                            }
+                        }
 
+                        y_rulers.insert(0, 0);
 
-                    let total_tiles = x_rulers.len() * y_rulers.len();
+                    let total_tiles = (x_rulers.len() - 1)  * (y_rulers.len() - 1);
                     println!("Total tiles: {:?}", total_tiles);
 
-                    let local_match_data = Mutex::new(Some(Vec::new()));
+                    let local_match_data = Arc::new(Mutex::new(Vec::new()));
                     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
-                    
+
+                    thread::spawn(clone!(@weak local_match_data => move || {
+                        let pics_data = pics_data.lock().unwrap();
+
+                        let x_steps = x_rulers[0..x_rulers.len() - 1].iter().enumerate();
+                        let y_steps = y_rulers[0..y_rulers.len() - 1].iter().enumerate();
+                        x_steps
+                            .cartesian_product(y_steps)
+                            .par_bridge()
+                            .for_each(|((i, &x), (j, &y))| {
+                                let width = x_rulers[i + 1] - x;
+                                let height = y_rulers[j + 1] - y;
+                                println!("{}, {}, {}, {}, {}, {}", i, j, x, y, width, height);
+
+                                let mut crop_img = input.clone();
+                                let crop = crop(&mut crop_img, x, y, width, height).to_image();
+                                let aspect = width as f64 / height as f64;
+                                let thumbnail = resize(&crop, 128, 128, image::FilterType::Lanczos3);
+
+                                let best_match = find_best_match(aspect, &thumbnail, &pics_data);
+                                let best_image = image::open(best_match).unwrap().to_rgb();
+                                let best_resize = resize(&best_image, width, height, image::FilterType::Lanczos3);
+
+                                let match_data = MatchData {
+                                    x: x,
+                                    y: y,
+                                    tile: best_resize,
+                                };
+                                local_match_data.lock().unwrap().push(match_data);
+                                tx.send(Some(1)).unwrap();
+                            });
+                        tx.send(None).unwrap();  
+                    }));
+
                     let mut count = 0;
                     rx.attach(None, move |value| match value {
                         Some(_) => {
@@ -290,41 +316,16 @@ impl MainView {
                             glib::Continue(true)
                         }
                         None => {
-
+                            //                
+                            // Need to create an image with the tiles copied into it and save it here.
+                            //
+                            println!("Now to generate and save an image to {:?}", path);
+                            println!("local_match_data len: {}", local_match_data.lock().unwrap().len());
+                                                        
                             glib::Continue(false)
                         }
                     });
-
-                    x_steps
-                        .cartesian_product(y_steps)
-                        .par_bridge()
-                        .for_each(|((i, &x), (j, &y))| {
-                            let width = x_rulers[i + 1] - x;
-                            let height = y_rulers[j + 1] - y;
-                            println!("{}, {}, {}, {}, {}, {}", i, j, x, y, width, height);
-
-                            let mut crop_img = input.clone();
-                            let crop = crop(&mut crop_img, x, y, width, height).to_image();
-                            let aspect = width as f64 / height as f64;
-                            let thumbnail = resize(&crop, 128, 128, image::FilterType::Lanczos3);
-
-                            let best_match = find_best_match(aspect, &thumbnail, &pics_data);
-                            let best_image = image::open(best_match).unwrap().to_rgb();
-                            let best_resize = resize(&best_image, width, height, image::FilterType::Lanczos3);
-
-                            let match_data = MatchData {
-                                x: x,
-                                y: y,
-                                tile: best_resize,
-                            };
-                            local_match_data.lock().unwrap().take().unwrap().push(match_data);
-                            tx.send(Some(1)).unwrap();
-                        });
                 }
-
-                //                
-                // Need to create an image with the tiles copied into it and save it here.
-                //
 
                 file_chooser.close();
             }));
