@@ -14,7 +14,16 @@ use mlib::*;
 pub fn get_pics_data(pics_dir: &Path) -> Vec<PicData> {
     let paths = fs::read_dir(pics_dir).unwrap().map(|x| x.unwrap().path());
 
-    paths.par_bridge().map(get_pic_data).collect()
+    let pics_data: Vec<Option<PicData>> = paths.par_bridge().map(get_pic_data).collect();
+    let mut pics_vec: Vec<PicData> = Vec::new();
+    for opt in pics_data {
+        match opt {
+            Some(data) => pics_vec.push(data),
+            None => {},
+        }
+    }
+
+    pics_vec
 }
 
 fn get_match_data(

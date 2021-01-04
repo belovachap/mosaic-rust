@@ -138,19 +138,26 @@ impl MainView {
                 
                 thread::spawn(clone!(@weak local_pics_data => move || {
                     paths.par_bridge().for_each(|path| {
-                        let pic_data = get_pic_data(path);
-                        local_pics_data.lock().unwrap().push(pic_data);
-                        tx.send(Some(1)).unwrap();
-                    });
+                        match get_pic_data(path) {
+                            Some(pic_data) => {
+                                local_pics_data.lock().unwrap().push(pic_data);
+                                tx.send(Some(1)).unwrap(); 
+                            },
+                            None => tx.send(Some(0)).unwrap(),
+                        }
+                    });                        
                     tx.send(None).unwrap();
                 }));
 
-                let mut count = 0;
+                let mut num_processed = 0;
+                let mut num_loaded = 0;
                 rx.attach(None, move |value| match value {
-                    Some(_) => {
-                        count += 1;
-                        pics_data_progress.set_text(Some(&(count.to_string() + " Pictures Loaded")));
-                        pics_data_progress.set_fraction(count as f64 / total_files as f64);
+                    Some(value) => {
+                        num_processed += 1;
+                        num_loaded += value;
+                        
+                        pics_data_progress.set_text(Some(&(num_loaded.to_string() + " Pictures Loaded")));
+                        pics_data_progress.set_fraction(num_processed as f64 / total_files as f64);
 
                         glib::Continue(true)
                     }
