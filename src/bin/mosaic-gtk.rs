@@ -200,7 +200,7 @@ impl MainView {
             ]);
             file_chooser.connect_response(clone!(@weak input, @weak pics_data, @weak match_data_progress => move |file_chooser, response| {
                 if response == gtk::ResponseType::Ok {
-                    let input = input.lock().unwrap().take().unwrap();
+                    let input_data = input.lock().unwrap().as_ref().clone().unwrap().clone();
                     let path = file_chooser.get_filename().expect("Couldn't get filename");
                     println!("You selected: {:?}", path);
                     println!("Create the output!");
@@ -213,7 +213,7 @@ impl MainView {
                         loop {
                             let step = distribution.sample(&mut rng);
 
-                            if pixels + step > input.width() {
+                            if pixels + step > input_data.width() {
                                 break;
                             }
 
@@ -221,7 +221,7 @@ impl MainView {
                             x_rulers.push(pixels);
                         }
 
-                        let mut x_remaining = input.width() - pixels;
+                        let mut x_remaining = input_data.width() - pixels;
                         while x_remaining > 0 {
                             for i in 0..x_rulers.len() {
                                 for j in i..x_rulers.len() {
@@ -243,7 +243,7 @@ impl MainView {
                         loop {
                             let step = distribution.sample(&mut rng);
 
-                            if pixels + step > input.height() {
+                            if pixels + step > input_data.height() {
                                 break;
                             }
 
@@ -251,7 +251,7 @@ impl MainView {
                             y_rulers.push(pixels);
                         }
 
-                        let mut y_remaining = input.height() - pixels;
+                        let mut y_remaining = input_data.height() - pixels;
                         while y_remaining > 0 {
                             for i in 0..y_rulers.len() {
                                 for j in i..y_rulers.len() {
@@ -273,7 +273,7 @@ impl MainView {
                     let local_match_data = Arc::new(Mutex::new(Vec::new()));
                     let (tx, rx) = glib::MainContext::channel(glib::PRIORITY_DEFAULT);
 
-                    thread::spawn(clone!(@weak local_match_data => move || {
+                    thread::spawn(clone!(@weak local_match_data, @weak input => move || {
                         let pics_data = pics_data.lock().unwrap();
 
                         let x_steps = x_rulers[0..x_rulers.len() - 1].iter().enumerate();
@@ -286,7 +286,7 @@ impl MainView {
                                 let height = y_rulers[j + 1] - y;
                                 println!("{}, {}, {}, {}, {}, {}", i, j, x, y, width, height);
 
-                                let mut crop_img = input.clone();
+                                let mut crop_img = input.lock().unwrap().as_ref().clone().unwrap().clone();
                                 let crop = crop(&mut crop_img, x, y, width, height).to_image();
                                 let aspect = width as f64 / height as f64;
                                 let thumbnail = resize(&crop, 128, 128, image::FilterType::Lanczos3);
@@ -316,12 +316,19 @@ impl MainView {
                             glib::Continue(true)
                         }
                         None => {
-                            //                
-                            // Need to create an image with the tiles copied into it and save it here.
-                            //
-                            println!("Now to generate and save an image to {:?}", path);
-                            println!("local_match_data len: {}", local_match_data.lock().unwrap().len());
-                                                        
+                            let mut output = input.lock().unwrap().clone().take().unwrap();
+                            for m in local_match_data.lock().unwrap().iter() {
+                                replace(&mut output, &m.tile, m.x, m.y);
+                            }
+                            image::save_buffer(
+                                &path,
+                                &output,
+                                output.width(),
+                                output.height(),
+                                image::ColorType::RGB(8),
+                            )
+                            .unwrap();
+
                             glib::Continue(false)
                         }
                     });
