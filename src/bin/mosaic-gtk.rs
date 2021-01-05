@@ -184,7 +184,9 @@ impl MainView {
                 let path = button.get_filename().unwrap();
                 println!("You selected: {:?}", path);
                 *input.lock().unwrap() = Some(image::open(path).unwrap().to_rgb());
-            }),
+                input_progress.set_text(Some("Photo Selected"));
+                input_progress.set_fraction(1.0);
+            })
         );
 
         let match_data_progress = gtk::ProgressBar::new();
